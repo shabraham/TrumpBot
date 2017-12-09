@@ -13,13 +13,15 @@ def sentiment():
 	# function call: python src/main.py pos.txt neg.txt
 	# p_f = open("SentimentDataset/Train/" + sys.argv[1],"r")
 	# n_f = open("SentimentDataset/Train/" + sys.argv[2],"r")
-	p_f = open("../../tweets.csv","r")
+	tweets = open("tweets.csv","r")
 	# n_f = open("../SentimentDataset/Train/neg.txt","r")	
-	p_text = p_f.readlines()
+	tweet_lines = tweets.readlines()
 	# n_text = n_f.readlines()
 	
 	#initialize models
-	p_model = n_gram.model(p_text,"pos")
+	model = n_gram.model(tweet_lines)
+	#print model.bi_counts
+	#print model.uni_counts
 	# n_model = n_gram.model(n_text,"neg")
 	# n_model = None
 	# n_model = n_gram.model(p_text)
@@ -29,7 +31,7 @@ def sentiment():
 	#n_model.train(n_text)
 	
 	# save the models to a file
-	p_model.serialize()
+	model.serialize()
 	#n_model.serialize()
 
 	#print p_model.bi_writer(5) 
@@ -46,7 +48,7 @@ def sentiment():
 	print s
 	'''
     
-	return p_model
+	return model
 
 # 1: positive review, 0: negative review
 # tup: first value is the positive model, second is the negative model
@@ -55,7 +57,8 @@ def generateReviews(tup):
 	#neg_model = tup[1]
 
 	posLst = []
-	posLst.append(pos_model.bi_writer(10))
+	posLst.append(pos_model.bi_writer(28))
+	print posLst
 	posLst.append(pos_model.bi_writer(50))
 	posLst.append(pos_model.bi_writer(100))
 	posLst.append("****** Generating Seeding Sentences ******")
