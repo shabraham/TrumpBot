@@ -13,7 +13,7 @@ def sentiment():
 	# function call: python src/main.py pos.txt neg.txt
 	# p_f = open("SentimentDataset/Train/" + sys.argv[1],"r")
 	# n_f = open("SentimentDataset/Train/" + sys.argv[2],"r")
-	tweets = open("tweets.csv","r")
+	tweets = open("tweets9000.csv","r")
 	# n_f = open("../SentimentDataset/Train/neg.txt","r")	
 	tweet_lines = tweets.readlines()
 	# n_text = n_f.readlines()
@@ -61,8 +61,8 @@ def generateBot(tup):
 	trumpLst = []
 	trumpLst.append(trump_model.bi_writer(28))
 	trumpLst.append("****** Generating Seeding Sentences ******")
-	trumpLst.append(trump_model.biWriterSeed("crooked",1))
-	trumpLst.append(trump_model.biWriterSeed("Make america",10))
+	trumpLst.append(trump_model.triWriterSeed("crooked hillary",26))
+	trumpLst.append(trump_model.triWriterSeed("make america",10))
 	trumpLst.append(trump_model.biWriterSeed(question,27))
 	# posLst.append("****** Generating Unigram Models ******")
 	# posLst.append(pos_model.uni_writer(10))

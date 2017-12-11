@@ -6,6 +6,7 @@ import string
 class model(object):
 	
 	def __init__(self,text): 
+		self.tri_counts = {'<s>':{},'<\s>':{}}
 		self.bi_counts = {'<s>':{},'<\s>':{}}
 		self.uni_counts = {}
 		self.tokens_with = 0 #including the start and end tokens added to each example
@@ -22,6 +23,9 @@ class model(object):
 		# train the bigram model with respect to the words we set as unknown
 		self.trainBi()		
 		print "successfully trained bi_counts map"
+
+		self.trainTri()
+		print "successfully trained tri_counts map"
 
 		#self.bi_perplexity(text,0.05)
 		#smoothing
@@ -110,6 +114,26 @@ class model(object):
 
 		return (self.bi_counts[prev_word][word] + K)/float(divisor)
 
+	def tri_gen_text(self,pp_word,prev_word):
+		next_words = []
+		if self.tri_counts.has_key(pp_word):
+			if self.tri_counts.get(pp_word).has_key(prev_word):
+				next_words = self.tri_counts.get(pp_word)[prev_word]
+			else:
+				next_words = self.bi_counts[prev_word]
+		items = []
+		prob_dist = []
+
+		if prev_word == "<\s>":
+			return "<s>"
+		
+		for word in next_words:
+			items.append(word)
+			prob_dist.append(float(next_words[word]))
+
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
+		return np.random.choice(items,p=prob_dist,replace=False)
 
 	def bi_gen_text(self,prev_word):
 		next_words = self.bi_counts[prev_word]
@@ -173,7 +197,7 @@ class model(object):
 		buff = []
 		prev = (prevSentence.strip().split(" "))[-1]
 		while len(buff) < k:
-			if len(prev) > 0 and prev[-1] in punctuation:
+			if len(prev) > 1 and prev[-1] in punctuation:
 				break
 			buff.append(self.bi_gen_text(prev))
 			prev = buff[-1]
@@ -185,7 +209,31 @@ class model(object):
 				s += buff[i] + "\n"
 			else:
 				s += buff[i] + " "
-		return prevSentence + " " + s	
+		return prevSentence + " " + s
+
+	def triWriterSeed(self,prevSentence,k):
+		punctuation = set(string.punctuation)
+		buff = []
+		sen = prevSentence.strip().split(" ")
+		prev_prev = sen[-2]
+		prev = sen[-1]
+		buff.append(prev_prev)
+		buff.append(prev)
+		while len(buff) < k:
+			if len(prev) > 1 and prev[-1] in punctuation:
+				break
+			buff.append(self.tri_gen_text(prev_prev,prev))
+			prev = buff[-1]
+			prev_prev = buff[-2]
+			while buff[-1] == "<s>" or buff[-1] == "<\s>":
+				buff.pop()
+		s = ""
+		for i in xrange(0,len(buff)):
+			if i == k-1:
+				s += buff[i] + "\n"
+			else:
+				s += buff[i] + " "
+		return s
 
 	def clear(self):
 		self.bi_counts = {'<s>':{},'<\s>':{}}
@@ -244,6 +292,23 @@ class model(object):
 		# for key in self.bi_counts:
 		# 	if key != "UNK":
 		# 		self.bi_counts.get(key)["UNK"] = 0.1
+
+	def trainTri(self):
+		for line in self.text:
+			if line[-1:] == "\n":
+				line = "<s>," + line[:-1] + ",<\s>"
+			words = line.lower().split(",")
+
+			for i in xrange(2,len(words)):
+				if not self.tri_counts.has_key(words[i-2]):
+					self.tri_counts[words[i-2]] = {}
+				if not self.tri_counts.get(words[i-2]).has_key(words[i-1]):
+					self.tri_counts.get(words[i-2])[words[i-1]] = {}
+				
+				if self.tri_counts.get(words[i-2]).get(words[i-1]).has_key(words[i]):
+					self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] += 1
+				else:
+					self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] = 1
 
 	def uni_perplexity(self, text):
 		for line in text:
