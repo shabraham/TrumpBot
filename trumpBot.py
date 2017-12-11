@@ -31,7 +31,7 @@ def sentiment():
 	#n_model.train(n_text)
 	
 	# save the models to a file
-	model.serialize()
+	# model.serialize()
 	#n_model.serialize()
 
 	#print p_model.bi_writer(5) 
@@ -52,22 +52,22 @@ def sentiment():
 
 # 1: positive review, 0: negative review
 # tup: first value is the positive model, second is the negative model
-def generateReviews(tup): 
-	pos_model = tup
-	#neg_model = tup[1]
+def generateBot(tup): 
+	print "Input a one word topic you want Trump to make a comment about: "
+	question = raw_input()
+	question = question.strip()
+	trump_model = tup
 
-	posLst = []
-	posLst.append(pos_model.bi_writer(28))
-	print posLst
-	posLst.append(pos_model.bi_writer(50))
-	posLst.append(pos_model.bi_writer(100))
-	posLst.append("****** Generating Seeding Sentences ******")
-	posLst.append(pos_model.biWriterSeed("Mexicans",1))
-	posLst.append(pos_model.biWriterSeed("I really",10))
-	posLst.append("****** Generating Unigram Models ******")
-	posLst.append(pos_model.uni_writer(10))
-	posLst.append(pos_model.uni_writer(50))
-	posLst.append(pos_model.uni_writer(100))
+	trumpLst = []
+	trumpLst.append(trump_model.bi_writer(28))
+	trumpLst.append("****** Generating Seeding Sentences ******")
+	trumpLst.append(trump_model.biWriterSeed("crooked",1))
+	trumpLst.append(trump_model.biWriterSeed("Make america",10))
+	trumpLst.append(trump_model.biWriterSeed(question,27))
+	# posLst.append("****** Generating Unigram Models ******")
+	# posLst.append(pos_model.uni_writer(10))
+	# posLst.append(pos_model.uni_writer(50))
+	# posLst.append(pos_model.uni_writer(100))
 
 	# negLst = []
 	# negLst.append(neg_model.bi_writer(10))
@@ -81,17 +81,17 @@ def generateReviews(tup):
 	# negLst.append(neg_model.uni_writer(50))
 	# negLst.append(neg_model.uni_writer(100))
 
-	with open("posGenBiText.txt","wb") as f: 
-		for ele in posLst:
+	with open("trumpGenBiText.txt","wb") as f: 
+		for ele in trumpLst:
 			f.write(ele +"\n")
 
-	with open("negGenBiText.txt","wb") as f: 
-		for ele in negLst:
-			f.write(ele +"\n")
+	# with open("negGenBiText.txt","wb") as f: 
+	# 	for ele in negLst:
+	# 		f.write(ele +"\n")
 
 def main():
 	tup = sentiment()
-	generateReviews(tup)
+	generateBot(tup)
 	#uni_s = uni_writer()
 	#print "____________uniWriter____________"
 	#print uni_s

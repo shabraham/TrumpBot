@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import string
 
 
 class model(object):
@@ -14,27 +15,9 @@ class model(object):
 		self.k = None
 		self.id = "NOT NEEDED"
 
-		#self.parseTraining()
-		print "parsing the training"
-
-		typeLst = self.typeLstGen(self.text)
-		print "generated typeLst..."
-
-		# generate the uni_counts map... This is equivalent to a token list
-		# for typ in typeLst:
-		# 	if typ != "<\s>" and typ != "<s>":
-		# 		self.uni_counts[typ] = 0
-		self.uni_counts["UNK"] = 0  # account for unknown words...
-		print "generated uni_counts map"
-		
 		# now uni+counts is equivalent to a token list: (key,value) = (word,count)
 		self.trainUni()
 		print "successfully trained uni_counts"
-
-		# now typeLst is equal to the modified typeLst after deleting 1 count words from our unigram model
-		typeSet = set(self.uni_counts.keys())
-		typeSet.add("<s>")
-		typeSet.add("<\s>")
 
 		# train the bigram model with respect to the words we set as unknown
 		self.trainBi()		
@@ -135,31 +118,23 @@ class model(object):
 
 		if prev_word == "<\s>":
 			return "<s>"
-		if prev_word == "<s>":
-			divisor = self.num_examples
-		else:
-			divisor = self.uni_counts[prev_word]
 		
 		for word in next_words:
 			items.append(word)
-			prob_dist.append(next_words[word]/float(divisor))
+			prob_dist.append(float(next_words[word]))
 
-		diff = sum(prob_dist) - 1.0
-		max_prob = 0
-		max_ind = 0
-		for i in range(len(prob_dist)):
-			if prob_dist[i] > max_prob:
-				max_prob = prob_dist[i]
-				max_ind = i
-		prob_dist[max_ind] = prob_dist[max_ind] - diff
-		return np.random.choice(items,p=prob_dist)
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
+		return np.random.choice(items,p=prob_dist,replace=False)
 
 	def uni_gen_text(self):
 		items = []
 		prob_dist = []
 		for word in self.uni_counts:
 			items.append(word)
-			prob_dist.append(self.uni_counts[word]/float(self.tokens_without))
+			prob_dist.append(self.uni_counts[word])
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
 		return np.random.choice(items,p=prob_dist)		
 
 	def bi_writer(self,k):
@@ -194,15 +169,18 @@ class model(object):
 
 	# Generate a cohesive sentence of length k + length of prevSentence
 	def biWriterSeed(self,prevSentence,k):
+		punctuation = set(string.punctuation)
 		buff = []
 		prev = (prevSentence.strip().split(" "))[-1]
 		while len(buff) < k:
+			if len(prev) > 0 and prev[-1] in punctuation:
+				break
 			buff.append(self.bi_gen_text(prev))
 			prev = buff[-1]
 			while buff[-1] == "<s>" or buff[-1] == "<\s>":
 				buff.pop()
 		s = ""
-		for i in xrange(0,k):
+		for i in xrange(0,len(buff)):
 			if i == k-1:
 				s += buff[i] + "\n"
 			else:
@@ -226,30 +204,6 @@ class model(object):
 		print "\ntokens with ",self.tokens_with," tokens without ",self.tokens_without,"\n"
 		print "number of training examples ",self.num_examples,"\n"
 
-	# save language models to a text file
-	def serialize(self): 
-		with open("unigram.txt","wb") as f: 
-			for key in self.uni_counts:
-				f.write(str(key) +" " + str(self.uni_counts[key]) + "\n")
-
-		with open("bigram.txt","wb") as f: 
-			for key in self.bi_counts:
-				f.write(str(key) +" " + str(self.bi_counts[key]) + "\n")
-
-
-	def typeLstGen(self,text): 
-		# generate a token list
-		typeLst = []
-		wordSet = set()
-		for line in text: 
-			line = "<s> " + line[:-1] + " <\s>"
-			words = line.lower().split(" ")
-			for word in words: 
-				if word not in wordSet:
-					typeLst.append(word)
-					wordSet.add(word)
-		return typeLst
-
 	def trainUni(self): 
 		for line in self.text:
 			words = line.lower().split(",")
@@ -261,13 +215,13 @@ class model(object):
 			
 			self.num_examples += 1
 			self.tokens_with += len(words)
-			self.tokens_without += (len(words)-2)
+			#self.tokens_without += (len(words)-2)
 
 		# now do option 2 for handling unknown words: transform all count(1) tokens into unknowns
 		# we then delete words with count 1 since we're assuming they're unknowns
-		for word in self.uni_counts:
-			self.uni_counts[word] -= 0.10
-			self.uni_counts["UNK"] += 0.10
+		# for word in self.uni_counts:
+		# 	self.uni_counts[word] -= 0.10
+		# 	self.uni_counts["UNK"] += 0.10
 
 	def trainBi(self):
 		for line in self.text:
@@ -285,11 +239,11 @@ class model(object):
 					self.bi_counts.get(words[i-1])[words[i]] = 1
 
 		# adding unk to our dict with an empty val
-		self.bi_counts["UNK"] = {}
-		# now add 0.1 (or however much we shave off) to each bigram entry that isn't unk
-		for key in self.bi_counts:
-			if key != "UNK":
-				self.bi_counts.get(key)["UNK"] = 0.1
+		# self.bi_counts["UNK"] = {}
+		# # now add 0.1 (or however much we shave off) to each bigram entry that isn't unk
+		# for key in self.bi_counts:
+		# 	if key != "UNK":
+		# 		self.bi_counts.get(key)["UNK"] = 0.1
 
 	def uni_perplexity(self, text):
 		for line in text:
