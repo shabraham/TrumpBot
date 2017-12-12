@@ -15,7 +15,10 @@ class model(object):
 		self.text = text
 		self.k = None
 		self.id = "NOT NEEDED"
+		self.seeds = {}
 
+		self.getValidSeeds(["hillary", "america", "crooked", "i", "like"])
+		print self.seeds
 		# now uni+counts is equivalent to a token list: (key,value) = (word,count)
 		self.trainUni()
 		print "successfully trained uni_counts"
@@ -31,6 +34,22 @@ class model(object):
 		#smoothing
 		#self.k_smooth()
 		#print "smoothed ;)"
+
+	def addToSeeds(self, line, seed):
+		print seed, line
+		for word in line:
+			print word
+			if (word != seed):
+				self.seeds[seed].append(word)
+
+	def getValidSeeds(self, validSeeds):
+		for seed in validSeeds:
+			self.seeds[seed] = []
+		for line in self.text:
+			line1 = line.lower().split(",")
+			for word in line1:
+				if word in validSeeds:
+					self.addToSeeds(line1, word)
 
 	def k_smooth(self): 
 		lst = np.linspace(0.01,1,100,endpoint=False)
@@ -191,15 +210,59 @@ class model(object):
 				s += buff[i] + " "
 		return s
 
+	def bi_gen_text_seed(self,prev_word, seed):
+    		next_words = self.bi_counts[prev_word]
+		items = []
+		prob_dist = []
+
+		if prev_word == "<\s>":
+			return "<s>"
+		
+		for word in next_words:
+			if (word in self.seeds[seed]):
+				items.append(word)
+				prob_dist.append(float(next_words[word]))
+
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
+		return np.random.choice(items,p=prob_dist,replace=False)
+
+	def tri_gen_text_seed(self,pp_word,prev_word, seed):
+		next_words = []
+		if self.tri_counts.has_key(pp_word):
+			if self.tri_counts.get(pp_word).has_key(prev_word):
+				next_words = self.tri_counts.get(pp_word)[prev_word]
+			else:
+				next_words = self.bi_counts[prev_word]
+		items = []
+		prob_dist = []
+
+		if prev_word == "<\s>":
+			return "<s>"
+		
+		for word in next_words:
+			if (word in self.seeds[seed]):
+				items.append(word)
+				prob_dist.append(float(next_words[word]))
+		if (len(items) == 0):
+			for word in next_words:
+				items.append(word)
+				prob_dist.append(float(next_words[word]))
+
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
+		return np.random.choice(items,p=prob_dist,replace=False)
+
 	# Generate a cohesive sentence of length k + length of prevSentence
 	def biWriterSeed(self,prevSentence,k):
 		punctuation = set(string.punctuation)
 		buff = []
 		prev = (prevSentence.strip().split(" "))[-1]
+		seed = prev
 		while len(buff) < k:
 			if len(prev) > 1 and prev[-1] in punctuation:
 				break
-			buff.append(self.bi_gen_text(prev))
+			buff.append(self.bi_gen_text_seed(prev, seed))
 			prev = buff[-1]
 			while buff[-1] == "<s>" or buff[-1] == "<\s>":
 				buff.pop()
@@ -219,10 +282,11 @@ class model(object):
 		prev = sen[-1]
 		buff.append(prev_prev)
 		buff.append(prev)
+		seed = prev
 		while len(buff) < k:
 			if len(prev) > 1 and prev[-1] in punctuation:
 				break
-			buff.append(self.tri_gen_text(prev_prev,prev))
+			buff.append(self.tri_gen_text_seed(prev_prev,prev,seed))
 			prev = buff[-1]
 			prev_prev = buff[-2]
 			while buff[-1] == "<s>" or buff[-1] == "<\s>":
