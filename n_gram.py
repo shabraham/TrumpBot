@@ -6,6 +6,7 @@ import string
 class model(object):
 	
 	def __init__(self,text): 
+		self.quad_counts = {'<s>':{},'<\s>':{}}
 		self.tri_counts = {'<s>':{},'<\s>':{}}
 		self.bi_counts = {'<s>':{},'<\s>':{}}
 		self.uni_counts = {}
@@ -17,14 +18,13 @@ class model(object):
 		self.id = "NOT NEEDED"
 		self.seeds = {}
 
-		validSeeds = []
+		"""validSeeds = []
 		for line in self.text:
 			line1 = line.lower().split(",")
 			for word in line1:
 				if word not in validSeeds:
-					validSeeds.append(word)
+					validSeeds.append(word)"""
 
-		self.getValidSeeds(validSeeds)
 	
 		# now uni+counts is equivalent to a token list: (key,value) = (word,count)
 		self.trainUni()
@@ -36,6 +36,9 @@ class model(object):
 
 		self.trainTri()
 		print "successfully trained tri_counts map"
+
+		self.trainQuad()
+		print "successfully trained quad_counts map"
 
 		#self.bi_perplexity(text,0.05)
 		#smoothing
@@ -215,7 +218,7 @@ class model(object):
 				s += buff[i] + " "
 		return s
 
-	def bi_gen_text_seed(self,prev_word, seed):
+	def bi_gen_text_seed(self,prev_word,seed):
     		next_words = self.bi_counts[prev_word]
 		items = []
 		prob_dist = []
@@ -283,7 +286,7 @@ class model(object):
 				next_words = self.tri_counts.get(pp_word)[prev_word]
 			elif self.bi_counts.has_key(prev_word):
 				next_words = self.bi_counts[prev_word]
-		else:
+		if next_words == []:
 			next_words = self.bi_counts["<s>"]
 		items = []
 		prob_dist = []
@@ -305,6 +308,42 @@ class model(object):
 		prob_dist /= sum(prob_dist)
 		return np.random.choice(items,p=prob_dist,replace=False)
 	
+	def quad_gen_text_seed(self,left_word,mid_word,right_word,seed):
+		next_words = []
+		if self.quad_counts.has_key(left_word):
+			if self.quad_counts.get(left_word).has_key(mid_word):
+				if self.quad_counts.get(left_word).get(mid_word).has_key(right_word):
+					next_words = self.quad_counts.get(left_word).get(mid_word)[right_word]
+				elif self.bi_counts.has_key(right_word):
+					next_words = self.bi_counts[right_word]
+			elif self.tri_counts.has_key(mid_word):
+				if self.tri_counts.get(mid_word).has_key(right_word):
+					next_words = self.tri_counts.get(mid_word)[right_word]
+				elif self.bi_counts.has_key(right_word):
+					next_words = self.bi_counts[right_word]
+			elif self.bi_counts.has_key(right_word):
+				next_words = self.bi_counts[right_word]
+		if next_words == []:
+			next_words = self.bi_counts["<s>"]
+		items = []
+		prob_dist = []
+
+		if right_word == "<\s>":
+			return "<s>"
+
+		for word in next_words:
+			if (word in self.seeds[seed]):
+				items.append(word)
+				prob_dist.append(float(next_words[word]))
+
+		if (len(items) == 0):
+			for word in next_words:
+				items.append(word)
+				prob_dist.append(float(next_words[word]))
+
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
+		return np.random.choice(items,p=prob_dist,replace=False)
 
 	# Generate a cohesive sentence of length k + length of prevSentence
 	def biWriterSeed(self,prevSentence,k):
@@ -336,6 +375,7 @@ class model(object):
 		prev = sen[-1]
 		buff = sen
 		seed = prev
+		self.getValidSeeds([seed])
 		while len(buff) < k:
 			if len(prev) > 1 and prev[-1] in punctuation:
 				break
@@ -343,6 +383,35 @@ class model(object):
 			#buff.append(self.tri_gen_text(prev_prev,prev))
 			prev = buff[-1]
 			prev_prev = buff[-2]
+			while buff[-1] == "<s>" or buff[-1] == "<\s>":
+				buff.pop()
+		s = ""
+		for i in xrange(0,len(buff)):
+			if i == k-1:
+				s += buff[i] + "\n"
+			else:
+				s += buff[i] + " "
+		return s
+
+	def quadWriterSeed(self,prevSentence,k):
+		punctuation = set(string.punctuation)
+		buff = []
+		sen = prevSentence.strip().split(" ")
+		prev_prev = sen[-3]
+		prev = sen[-2]
+		cur = sen[-1]
+		buff = sen
+		seed = cur
+		self.getValidSeeds([seed])
+
+		while len(buff) < k:
+			if len(cur) > 1 and cur[-1] in punctuation:
+				break
+			buff.append(self.quad_gen_text_seed(prev_prev,prev,cur,seed))
+			#buff.append(self.tri_gen_text(prev_prev,prev))
+			cur = buff[-1]
+			prev = buff[-2]
+			prev_prev = buff[-3]
 			while buff[-1] == "<s>" or buff[-1] == "<\s>":
 				buff.pop()
 		s = ""
@@ -429,6 +498,26 @@ class model(object):
 						self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] += 1
 					else:
 						self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] = 1
+
+	def trainQuad(self):
+		for line in self.text:
+			if line[-1:] == "\n":
+				line = "<s>," + line[:-1] + ",<\s>"
+			words = line.lower().split(",")
+
+			for i in xrange(3,len(words)):
+				if (words[i] != " " and words[i] != ""):
+					if not self.quad_counts.has_key(words[i-3]):
+						self.quad_counts[words[i-3]] = {}
+					if not self.quad_counts.get(words[i-3]).has_key(words[i-2]):
+						self.quad_counts.get(words[i-3])[words[i-2]] = {}
+					if not self.quad_counts.get(words[i-3]).get(words[i-2]).has_key(words[i-1]):
+						self.quad_counts.get(words[i-3]).get(words[i-2])[words[i-1]] = {}
+					
+					if self.quad_counts.get(words[i-3]).get(words[i-2]).get(words[i-1]).has_key(words[i]):
+						self.quad_counts.get(words[i-3]).get(words[i-2]).get(words[i-1])[words[i]] += 1
+					else:
+						self.quad_counts.get(words[i-3]).get(words[i-2]).get(words[i-1])[words[i]] = 1
 
 	def uni_perplexity(self, text):
 		for line in text:
