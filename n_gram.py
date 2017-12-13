@@ -17,8 +17,15 @@ class model(object):
 		self.id = "NOT NEEDED"
 		self.seeds = {}
 
-		self.getValidSeeds(["hillary", "america", "crooked", "i", "like"])
-		print self.seeds
+		validSeeds = []
+		for line in self.text:
+			line1 = line.lower().split(",")
+			for word in line1:
+				if word not in validSeeds:
+					validSeeds.append(word)
+
+		self.getValidSeeds(validSeeds)
+	
 		# now uni+counts is equivalent to a token list: (key,value) = (word,count)
 		self.trainUni()
 		print "successfully trained uni_counts"
@@ -36,9 +43,7 @@ class model(object):
 		#print "smoothed ;)"
 
 	def addToSeeds(self, line, seed):
-		print seed, line
 		for word in line:
-			print word
 			if (word != seed):
 				self.seeds[seed].append(word)
 
@@ -227,23 +232,70 @@ class model(object):
 		prob_dist /= sum(prob_dist)
 		return np.random.choice(items,p=prob_dist,replace=False)
 
-	def tri_gen_text_seed(self,pp_word,prev_word, seed):
+	"""def tri_gen_text_seed(self,pp_word,prev_word, seedLst):
 		next_words = []
 		if self.tri_counts.has_key(pp_word):
 			if self.tri_counts.get(pp_word).has_key(prev_word):
 				next_words = self.tri_counts.get(pp_word)[prev_word]
 			else:
+				print prev_word
 				next_words = self.bi_counts[prev_word]
 		items = []
 		prob_dist = []
 
 		if prev_word == "<\s>":
 			return "<s>"
+
+		validNextLst = []
+		for seed in seedLst:
+			for word in next_words:
+				if (word in self.seeds[seed]):
+					items.append(word)
+					#prob_dist.append(float(next_words[word]))
+			validNextLst.append(set(items))
+			items = []
+
+		while (len(validNextLst) > 0):
+			items = validNextLst.pop(0)
+			for i in range(len(validNextLst)):
+				items.intersection(validNextLst[i])
+			if len(items) > 0:
+				break
 		
+		items = list(items)
+		if (len(items) == 0):
+			for word in next_words:
+				items.append(word)
+				prob_dist.append(float(next_words[word]))
+		else:
+			for word in items:
+				prob_dist.append(float(next_words[word]))
+
+		prob_dist = np.array(prob_dist)
+		prob_dist /= sum(prob_dist)
+		return np.random.choice(items,p=prob_dist,replace=False)"""
+		
+
+	def tri_gen_text_seed(self,pp_word,prev_word,seed):
+		next_words = []
+		if self.tri_counts.has_key(pp_word):
+			if self.tri_counts.get(pp_word).has_key(prev_word):
+				next_words = self.tri_counts.get(pp_word)[prev_word]
+			elif self.bi_counts.has_key(prev_word):
+				next_words = self.bi_counts[prev_word]
+		else:
+			next_words = self.bi_counts["<s>"]
+		items = []
+		prob_dist = []
+
+		if prev_word == "<\s>":
+			return "<s>"
+
 		for word in next_words:
 			if (word in self.seeds[seed]):
 				items.append(word)
 				prob_dist.append(float(next_words[word]))
+
 		if (len(items) == 0):
 			for word in next_words:
 				items.append(word)
@@ -252,6 +304,7 @@ class model(object):
 		prob_dist = np.array(prob_dist)
 		prob_dist /= sum(prob_dist)
 		return np.random.choice(items,p=prob_dist,replace=False)
+	
 
 	# Generate a cohesive sentence of length k + length of prevSentence
 	def biWriterSeed(self,prevSentence,k):
@@ -262,7 +315,8 @@ class model(object):
 		while len(buff) < k:
 			if len(prev) > 1 and prev[-1] in punctuation:
 				break
-			buff.append(self.bi_gen_text_seed(prev, seed))
+			#buff.append(self.bi_gen_text_seed(prev, seed))
+			buff.append(self.bi_gen_text(prev))
 			prev = buff[-1]
 			while buff[-1] == "<s>" or buff[-1] == "<\s>":
 				buff.pop()
@@ -280,13 +334,13 @@ class model(object):
 		sen = prevSentence.strip().split(" ")
 		prev_prev = sen[-2]
 		prev = sen[-1]
-		buff.append(prev_prev)
-		buff.append(prev)
+		buff = sen
 		seed = prev
 		while len(buff) < k:
 			if len(prev) > 1 and prev[-1] in punctuation:
 				break
 			buff.append(self.tri_gen_text_seed(prev_prev,prev,seed))
+			#buff.append(self.tri_gen_text(prev_prev,prev))
 			prev = buff[-1]
 			prev_prev = buff[-2]
 			while buff[-1] == "<s>" or buff[-1] == "<\s>":
@@ -342,13 +396,14 @@ class model(object):
 			words = line.lower().split(",")
 
 			for i in xrange(1,len(words)):
-				if not self.bi_counts.has_key(words[i-1]):
-					self.bi_counts[words[i-1]] = {}
-				
-				if self.bi_counts.get(words[i-1]).has_key(words[i]):
-					self.bi_counts.get(words[i-1])[words[i]] += 1
-				else:
-					self.bi_counts.get(words[i-1])[words[i]] = 1
+				if (words[i] != " " and words[i] != ""):
+					if not self.bi_counts.has_key(words[i-1]):
+						self.bi_counts[words[i-1]] = {}
+					
+					if self.bi_counts.get(words[i-1]).has_key(words[i]):
+						self.bi_counts.get(words[i-1])[words[i]] += 1
+					else:
+						self.bi_counts.get(words[i-1])[words[i]] = 1
 
 		# adding unk to our dict with an empty val
 		# self.bi_counts["UNK"] = {}
@@ -364,15 +419,16 @@ class model(object):
 			words = line.lower().split(",")
 
 			for i in xrange(2,len(words)):
-				if not self.tri_counts.has_key(words[i-2]):
-					self.tri_counts[words[i-2]] = {}
-				if not self.tri_counts.get(words[i-2]).has_key(words[i-1]):
-					self.tri_counts.get(words[i-2])[words[i-1]] = {}
-				
-				if self.tri_counts.get(words[i-2]).get(words[i-1]).has_key(words[i]):
-					self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] += 1
-				else:
-					self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] = 1
+				if (words[i] != " " and words[i] != ""):
+					if not self.tri_counts.has_key(words[i-2]):
+						self.tri_counts[words[i-2]] = {}
+					if not self.tri_counts.get(words[i-2]).has_key(words[i-1]):
+						self.tri_counts.get(words[i-2])[words[i-1]] = {}
+					
+					if self.tri_counts.get(words[i-2]).get(words[i-1]).has_key(words[i]):
+						self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] += 1
+					else:
+						self.tri_counts.get(words[i-2]).get(words[i-1])[words[i]] = 1
 
 	def uni_perplexity(self, text):
 		for line in text:

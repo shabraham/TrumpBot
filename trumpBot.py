@@ -53,17 +53,21 @@ def sentiment():
 # 1: positive review, 0: negative review
 # tup: first value is the positive model, second is the negative model
 def generateBot(tup): 
-	print "Input a one word topic you want Trump to make a comment about: "
-	#question = raw_input()
-	#question = question.strip()
+	print "Input a two word topic you want Trump to make a comment about: "
+	question = raw_input()
+	question = question.strip()
 	trump_model = tup
 
 	trumpLst = []
-	trumpLst.append(trump_model.bi_writer(28))
-	trumpLst.append("****** Generating Seeding Sentences ******")
-	trumpLst.append(trump_model.triWriterSeed("crooked hillary",30))
-	trumpLst.append(trump_model.triWriterSeed("make america",15))
-	#trumpLst.append(trump_model.triWriterSeed(question,27))
+	# trumpLst.append(trump_model.bi_writer(28))
+	#trumpLst.append("****** Generating Seeding Sentences Bi-Gram ******")
+	#trumpLst.append(trump_model.biWriterSeed("crooked",20))
+	#trumpLst.append(trump_model.biWriterSeed("make america",15))
+	trumpLst.append("****** Generating Seeding Sentences Tri-Gram ******")
+	for i in range(20):
+		trumpLst.append(trump_model.triWriterSeed("crooked hillary",25))
+		trumpLst.append(trump_model.triWriterSeed("make america",25))
+		trumpLst.append(trump_model.triWriterSeed(question,25))
 	# posLst.append("****** Generating Unigram Models ******")
 	# posLst.append(pos_model.uni_writer(10))
 	# posLst.append(pos_model.uni_writer(50))
